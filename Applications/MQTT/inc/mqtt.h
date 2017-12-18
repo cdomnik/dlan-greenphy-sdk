@@ -19,7 +19,7 @@
 #define MQTTCLIENT_TIMEOUT 2000 /* Timeout of the client in ms */
 #define MQTTRECEIVE_TIMEOUT 1000 /* Timeout for MQTTYield, will wait full time, if to low will cause errors */
 
-//#define DEBUG_MQTT
+#define DEBUG_MQTT
 #ifdef DEBUG_MQTT
 	#define MQTT_INFO( X ) DEBUGOUT( X )
 #else
