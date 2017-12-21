@@ -446,7 +446,7 @@ from the FreeRTOSIPConfig.h configuration header file. */
 #endif /* ipconfigUSE_DNS_CACHE != 0 */
 
 #ifndef ipconfigCHECK_IP_QUEUE_SPACE
-	#define ipconfigCHECK_IP_QUEUE_SPACE			0
+	#define ipconfigCHECK_IP_QUEUE_SPACE			1
 #endif
 
 #ifndef ipconfigUSE_LLMNR
