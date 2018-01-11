@@ -90,9 +90,7 @@
 #define netconfigMQTT_PORT             1883
 #define netconfigMQTT_CLIENT           "TCdqKfhZeQriWr/7PNmy4mw"
 #define netconfigMQTT_USER             "09da8a7e-165e-42b8-96af-fecf366cb89b"
-#define netconfigMQTT_PASSWORT         "wy5t6n.SQBQx"
-#define netconfigMQTT_WILL_QOS         2 // Will QOS should be at least 1, so we can ensure every body get this message.
-#define netconfigMQTT_WILL_RETAIN      1 // Will Retain should be 1, so new subscribers will know this client is offline.*/
-#define netconfigMQTT_TOPIC            "/v1/09da8a7e-165e-42b8-96af-fecf366cb89b/data"
+#define netconfigMQTT_PASSWORT         "wy5t6n.SQBQx"*/
+#define netconfigMQTT_TOPIC            "/v1/6c1e2951-47cf-458c-a8ba-221dbc8b8898/data"
 
 #endif /* GREENPHYSDKNETCONFIG_H_ */

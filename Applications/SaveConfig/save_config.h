@@ -51,14 +51,21 @@
 	X(   4, eConfigNetworkMqttOnPwr ) \
 	X(  10, eConfigClickConfPort1 )   \
 	X(  11, eConfigClickConfPort2 )   \
-	X(  21, eConfigMqttBroker )       \
-	X(  22, eConfigMqttPort )         \
-	X(  23, eConfigMqttClientID )     \
-	X(  24, eConfigMqttUser )         \
-	X(  25, eConfigMqttPassWD )       \
-	X(  26, eConfigMqttWill )         \
-	X(  27, eConfigMqttWillTopic )    \
-	X(  28, eConfigMqttWillMsg )      \
+	X(  20, eConfigMqttBroker )       \
+	X(  21, eConfigMqttPort )         \
+	X(  22, eConfigMqttClientID )     \
+	X(  23, eConfigMqttUser )         \
+	X(  24, eConfigMqttPassWD )       \
+	X(  25, eConfigMqttWill )         \
+	X(  26, eConfigMqttWillTopic )    \
+	X(  27, eConfigMqttWillMsg )      \
+	X(  30, eConfigExpandPin1 )       \
+	X(  31, eConfigExpandPin2 )       \
+	X(  32, eConfigExpandMult )       \
+	X(  33, eConfigExpandTopic1 )     \
+	X(  34, eConfigExpandTopic2 )     \
+	X(  41, eConfigThermoTopic )      \
+	X(  51, eConfigColorTopic )       \
 	/* ADD YOUR OWN TAGS BELOW */     \
 	// X( 128, eConfigCustom )
 

@@ -51,7 +51,7 @@
 #include "http_request.h"
 #include "clickboard_config.h"
 #include "expand2click.h"
-
+#include "save_config.h"
 
 /* MQTT includes */
 #include "mqtt.h"
@@ -144,19 +144,23 @@ BaseType_t xTime = ( portGET_RUN_TIME_COUNTER_VALUE() / 10000UL );
 char lastBits = get_expand2click();
 //char count = 0;
 #if( netconfigUSEMQTT != 0 )
-	char buffer[80];
-	unsigned char pucExpTopic[30] = netconfigMQTT_TOPIC;
+	char buffer1[40];
+	char buffer2[40];
 	QueueHandle_t xMqttQueue = xGetMQTTQueueHandle();
 	MqttJob_t xJob;
-	MqttPublishMsg_t xPublish;
+	MqttPublishMsg_t xPublish1;
+	MqttPublishMsg_t xPublish2;
 
 	/* Set all connection details only once */
 	xJob.eJobType = ePublish;
-	xJob.data = (void *) &xPublish;
 
-	xPublish.pucTopic = pucExpTopic;
-	xPublish.xMessage.qos = 0;
-	xPublish.xMessage.retained = 0;
+	xPublish1.xMessage.qos = 0;
+	xPublish1.xMessage.retained = 0;
+	xPublish1.xMessage.payload = NULL;
+
+	xPublish2.xMessage.qos = 0;
+	xPublish2.xMessage.retained = 0;
+	xPublish2.xMessage.payload = NULL;
 #endif /* #if( netconfigUSEMQTT != 0 ) */
 
 	for(;;)
@@ -172,9 +176,9 @@ char lastBits = get_expand2click();
 		{
 			/* I2C is now usable for this Task. Set new Output on Port */
 			set_expand2click(oBits);
+
 			/* Get iBits from board */
 			iBits = get_expand2click();
-
 			/* Give Mutex back, so other Tasks can use I2C */
 			xSemaphoreGive( xI2C1_Mutex );
 		}
@@ -190,22 +194,38 @@ char lastBits = get_expand2click();
 		lastBits = iBits;
 
 		/* Print a debug message once every 10 s. */
-		if( ( portGET_RUN_TIME_COUNTER_VALUE() / 10000UL ) > xTime + 10 )
+		if( ( portGET_RUN_TIME_COUNTER_VALUE() / 10000UL ) > xTime + 5 ) /* _CD_ Set time to 5 secondes, beacause relayr close connection after 10s timeout */
 		{
+		#ifdef EXPAND_TEST
+			toggleCount[0] = ( toggleCount[0] + 1 ) % 100000;
+			toggleCount[1] = ( toggleCount[1] + 1 ) % 100000;
+		#endif
 			DEBUGOUT("Expand2Click - Meter 1: %d, Meter 2: %d\n", toggleCount[0], toggleCount[1] );
 		#if( netconfigUSEMQTT != 0 )
 			xMqttQueue = xGetMQTTQueueHandle();
 			if( xMqttQueue != NULL )
 			{
-				if(xPublish.xMessage.payload != NULL)
+				if((xPublish1.xMessage.payload == NULL) && ( togglePins[0] > 0 ))
 				{
 					/* _CD_ set payload each time, because mqtt task set payload to NULL, so calling task knows package is sent.*/
-					xPublish.xMessage.payload = buffer;
-					sprintf(buffer, "{\"meaning\":\"wmeter1\",\"value\":%d,\"meaning\":\"wmeter2\",\"value\":%d}", toggleCount[0], toggleCount[1] );
+					xJob.data = (void *) &xPublish1;
+					xPublish1.pucTopic = (char *)pvGetConfig( eConfigExpandTopic1, NULL );
+					xPublish1.xMessage.payload = buffer1;
+					sprintf(buffer1, "{\"meaning\":\"wmeter1\",\"value\":%8.2f}", ( toggleCount[0] * ((float)multiplicator / 1000 )) );
+					xPublish1.xMessage.payloadlen = strlen(buffer1);
 					xQueueSendToBack( xMqttQueue, &xJob, 0 );
 				}
-				else
-					DEBUGOUT("Expand2 Warning: Could not publish Packet, last message is waiting.\n");
+
+				if((xPublish2.xMessage.payload == NULL) && ( togglePins[1] > 0 ))
+				{
+					/* _CD_ set payload each time, because mqtt task set payload to NULL, so calling task knows package is sent.*/
+					xJob.data = (void *) &xPublish2;
+					xPublish2.pucTopic = (char *)pvGetConfig( eConfigExpandTopic2, NULL );
+					xPublish2.xMessage.payload = buffer2;
+					sprintf(buffer2, "{\"meaning\":\"wmeter2\",\"value\":%8.2f}", ( toggleCount[1] * ((float)multiplicator / 1000 )) );
+					xPublish2.xMessage.payloadlen = strlen(buffer2);
+					xQueueSendToBack( xMqttQueue, &xJob, 0 );
+				}
 			}
 		#endif /* #if( netconfigUSEMQTT != 0 ) */
 			xTime = ( portGET_RUN_TIME_COUNTER_VALUE() / 10000UL );
@@ -232,18 +252,29 @@ char lastBits = get_expand2click();
 		if( pxParam != NULL ) {
 			toggleCount[0] = 0;
 			togglePins[0] = strtol( pxParam->pcValue, NULL, 10 );
+			pvSetConfig( eConfigExpandPin1, sizeof( togglePins[0] ), &( togglePins[0] ));
 		}
 
 		pxParam = pxFindKeyInQueryParams( "pin1", pxParams, xParamCount );
 		if( pxParam != NULL ) {
 			toggleCount[1] = 0;
 			togglePins[1] = strtol( pxParam->pcValue, NULL, 10 );
+			pvSetConfig( eConfigExpandPin2, sizeof( togglePins[1] ), &( togglePins[1] ));
 		}
 
 		pxParam = pxFindKeyInQueryParams( "multi", pxParams, xParamCount );
 		if( pxParam != NULL ) {
 			multiplicator = strtol( pxParam->pcValue, NULL, 10 );
+			pvSetConfig( eConfigExpandMult, sizeof( multiplicator ), &( multiplicator ));
 		}
+
+		pxParam = pxFindKeyInQueryParams( "etopic1", pxParams, xParamCount );
+		if( pxParam != NULL )
+			pvSetConfig( eConfigExpandTopic1, strlen(pxParam->pcValue) + 1, pxParam->pcValue );
+
+		pxParam = pxFindKeyInQueryParams( "etopic2", pxParams, xParamCount );
+		if( pxParam != NULL )
+			pvSetConfig( eConfigExpandTopic2, strlen(pxParam->pcValue) + 1, pxParam->pcValue );
 
 		xCount += sprintf( pcBuffer, "{"
 				"\"input\":"  "%d,"
@@ -253,7 +284,7 @@ char lastBits = get_expand2click();
 				"\"pin0\":"   "%d,"
 				"\"pin1\":"   "%d,"
 				"\"multi\":"  "%d"
-			"}",
+			"",
 			iBits,
 			oBits,
 			toggleCount[0],
@@ -262,6 +293,27 @@ char lastBits = get_expand2click();
 			togglePins[1],
 			multiplicator
 		);
+
+	#if( netconfigUSEMQTT != 0 )
+		char buffer[50];
+		char *pcTopic = (char *)pvGetConfig( eConfigExpandTopic1, NULL );
+		if( ( pcTopic != NULL ) )
+		{
+			strcpy( buffer, pcTopic );
+			vCleanTopic( buffer );
+			xCount += sprintf( pcBuffer + xCount , ",\"etopic1\":\"%s\"", buffer );
+		}
+
+		pcTopic = (char *)pvGetConfig( eConfigExpandTopic2, NULL );
+		if( ( pcTopic != NULL ) )
+		{
+			strcpy( buffer, pcTopic );
+			vCleanTopic( buffer );
+			xCount += sprintf( pcBuffer + xCount, ",\"etopic2\":\"%s\"", buffer );
+		}
+	#endif /* #if( netconfigUSEMQTT != 0 ) */
+
+		xCount += sprintf( pcBuffer + xCount, "}");
 		return xCount;
 	}
 #endif
@@ -270,6 +322,8 @@ char lastBits = get_expand2click();
 BaseType_t xExpand2Click_Init ( const char *pcName, BaseType_t xPort )
 {
 BaseType_t xReturn = pdFALSE;
+char *toggle;
+int *mult;
 
 	/* Use the task handle to guard against multiple initialization. */
 	if( xClickTaskHandle == NULL )
@@ -328,9 +382,13 @@ BaseType_t xReturn = pdFALSE;
 			xReturn = pdTRUE;
 		}
 
-		/* _CD_ Initialize Config for debugging */
-		togglePins[0] = 0x01; //PA0
-		togglePins[1] = 0x10; //PA4
+		/* Initialize with values from Config */
+		if(( toggle = pvGetConfig( eConfigExpandPin1, NULL)) != NULL)
+			togglePins[0] = *toggle;
+		if(( toggle = pvGetConfig( eConfigExpandPin2, NULL)) != NULL)
+					togglePins[1] = *toggle;
+		if(( mult = pvGetConfig( eConfigExpandMult, NULL)) != NULL)
+			multiplicator = *mult;
 	}
 
 	return xReturn;

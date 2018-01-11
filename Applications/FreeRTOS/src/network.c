@@ -43,7 +43,7 @@
 #include "FreeRTOS_IP.h"
 #include "FreeRTOS_Sockets.h"
 #include "FreeRTOS_Routing.h"
-#include "FreeRTOS_TCP_server.h"
+#include "FreeRTOS_HTTP_server.h"
 
 /* GreenPHY SDK includes. */
 #include "GreenPhySDKNetConfig.h"
@@ -102,27 +102,27 @@
 	static void prvServerWorkTask( void *pvParameters )
 	{
 	const TickType_t xInitialBlockTime = pdMS_TO_TICKS( 200UL );
-	TCPServer_t *pxTCPServer = NULL;
+	HTTPServer_t *pxHTTPServer = NULL;
 
 	/* A structure that defines the servers to be created.  Which servers are
 	included in the structure depends on the mainCREATE_HTTP_SERVER and
 	mainCREATE_FTP_SERVER settings at the top of this file. */
-	static const struct xSERVER_CONFIG xServerConfiguration[] =
-	{
+	static const struct xSERVER_CONFIG xServerConfiguration =
+
 		/* Server type,		port number,	backlog, 	root dir. */
-		{ eSERVER_HTTP, 	80, 			0, 		"" }
-	};
+		{ 					80, 			0, 		"" }
+	;
 
 		/* Remove compiler warning about unused parameter. */
 		( void ) pvParameters;
 
 		/* Create the servers defined by the xServerConfiguration array above. */
-		pxTCPServer = FreeRTOS_CreateTCPServer( xServerConfiguration, sizeof( xServerConfiguration ) / sizeof( xServerConfiguration[ 0 ] ) );
-		configASSERT( pxTCPServer );
+		pxHTTPServer = FreeRTOS_CreateHTTPServer( &xServerConfiguration );
+		configASSERT( pxHTTPServer );
 
 		for( ;; )
 		{
-			FreeRTOS_TCPServerWork( pxTCPServer, xInitialBlockTime );
+			FreeRTOS_HTTPServerWork( pxHTTPServer, xInitialBlockTime );
 		}
 	}
 #endif
@@ -149,6 +149,23 @@ void vApplicationIPNetworkEventHook( eIPCallbackEvent_t eNetworkEvent, NetworkEn
 				 */
 				vStartEthTasks();
 
+			#if( netconfigUSEMQTT != 0 )
+				char *cMqtt = NULL;
+				cMqtt = (char *)pvGetConfig( eConfigNetworkMqttOnPwr, NULL );
+				if( (*cMqtt) > 0 )
+				{
+					// Start MQTT Task
+					xInitMQTT();
+					// Wait for Task to initialize
+					vTaskDelay( pdMS_TO_TICKS( 500 ) );
+					// Connect MQTT Broker
+					MqttJob_t xJob;
+					xJob.eJobType = eConnect;
+					QueueHandle_t xMqttQueue = xGetMQTTQueueHandle();
+					if( xMqttQueue != NULL )
+						xQueueSendToBack( xMqttQueue, &xJob, 0 );
+				}
+			#endif /* #if( netconfigUSEMQTT != 0 ) */
 
 				#define	mainTCP_SERVER_STACK_SIZE						240 /* Not used in the Win32 simulator. */
 

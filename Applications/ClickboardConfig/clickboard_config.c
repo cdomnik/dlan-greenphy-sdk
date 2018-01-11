@@ -210,6 +210,7 @@ BaseType_t xSuccess = pdFALSE;
 	BaseType_t x, xCount = 0;
 	QueryParam_t *pxParam;
 	Clickboard_t *pxClickboard;
+	char on;
 
 		/* Check if "port1" or "port2" GET parameters are set
 		to activate the given clickboard. */
@@ -248,22 +249,29 @@ BaseType_t xSuccess = pdFALSE;
 			vEraseConfig();
 		}
 
+	#if( netconfigUSEMQTT != 0 )
 		pxParam = pxFindKeyInQueryParams( "mqttSwitch", pxParams, xParamCount );
 		if( pxParam != NULL )
 		{
 			if( strcmp( pxParam->pcValue, "on" ) == 0 )
 			{
 				xInitMQTT();
+				on = 1;
+				pvSetConfig( eConfigNetworkMqttOnPwr, sizeof(on), &on );
 			}
 			if( strcmp( pxParam->pcValue, "off" ) == 0 )
 			{
 				vDeinitMQTT();
+				on = 0;
+				pvSetConfig( eConfigNetworkMqttOnPwr, sizeof(on), &on );
 			}
 		}
+	#endif /* #if( netconfigUSEMQTT != 0 ) */
 
 		/* Generate response containing all registered clickboards,
 		their names and on which ports they are available and active. */
-		xCount += sprintf( pcBuffer, "{\"mqttSwitch\":%d,\"clickboards\":[", (xGetMQTTQueueHandle() == NULL)?0:1);
+		on = *((char *)pvGetConfig( eConfigNetworkMqttOnPwr, NULL ));
+		xCount += sprintf( pcBuffer, "{\"mqttSwitch\":%d,\"mqttAutoOn\":%d,\"clickboards\":[", on);
 
 		for( x = 0; x < ARRAY_SIZE( pxClickboards ); x++ )
 		{

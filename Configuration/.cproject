@@ -46,6 +46,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries/FreeRTOSv9.0.0/include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries/dLAN_Green_PHY_eval_board/inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries/lpc_chip_175x_6x/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Configuration}&quot;"/>
 								</option>
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1783528360" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
@@ -70,6 +71,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries/FreeRTOSv9.0.0/include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries/dLAN_Green_PHY_eval_board/inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries/lpc_chip_175x_6x/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries}&quot;"/>
 								</option>
 								<inputType id="com.crt.advproject.assembler.input.633318433" name="Additional Assembly Source Files" superClass="com.crt.advproject.assembler.input"/>
 								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.1188805306" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
@@ -90,10 +92,13 @@
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="includePath" name="/Libraries/FreeRTOSv9.0.0/include"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="includePath" name="/Libraries/dLAN_Green_PHY_eval_board/inc"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="includePath" name="/Libraries/lpc_chip_175x_6x/inc"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="includePath" name="/Libraries"/>
 						<entry flags="RESOLVED" kind="macro" name="CORE_M3" value=""/>
 						<entry flags="RESOLVED" kind="macro" name="__USE_LPCOPEN" value=""/>
 						<entry flags="RESOLVED" kind="macro" name="__REDLIB__" value=""/>
 						<entry flags="RESOLVED" kind="macro" name="__CODE_RED" value=""/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="libraryPath" name="/Libraries/Debug"/>
+						<entry flags="RESOLVED" kind="libraryFile" name="Libraries" srcPrefixMapping="" srcRootPath=""/>
 					</externalSetting>
 				</externalSettings>
 			</storageModule>
@@ -143,6 +148,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries/FreeRTOSv9.0.0/include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries/dLAN_Green_PHY_eval_board/inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries/lpc_chip_175x_6x/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Configuration}&quot;"/>
 								</option>
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1188065388" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
@@ -167,6 +173,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries/FreeRTOSv9.0.0/include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries/dLAN_Green_PHY_eval_board/inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries/lpc_chip_175x_6x/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Libraries}&quot;"/>
 								</option>
 								<inputType id="com.crt.advproject.assembler.input.1120514693" name="Additional Assembly Source Files" superClass="com.crt.advproject.assembler.input"/>
 								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.173906431" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
@@ -187,10 +194,13 @@
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="includePath" name="/Libraries/FreeRTOSv9.0.0/include"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="includePath" name="/Libraries/dLAN_Green_PHY_eval_board/inc"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="includePath" name="/Libraries/lpc_chip_175x_6x/inc"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="includePath" name="/Libraries"/>
 						<entry flags="RESOLVED" kind="macro" name="CORE_M3" value=""/>
 						<entry flags="RESOLVED" kind="macro" name="__USE_LPCOPEN" value=""/>
 						<entry flags="RESOLVED" kind="macro" name="__REDLIB__" value=""/>
 						<entry flags="RESOLVED" kind="macro" name="__CODE_RED" value=""/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="libraryPath" name="/Libraries/Debug"/>
+						<entry flags="RESOLVED" kind="libraryFile" name="Libraries" srcPrefixMapping="" srcRootPath=""/>
 					</externalSetting>
 				</externalSettings>
 			</storageModule>

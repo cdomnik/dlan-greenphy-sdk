@@ -52,18 +52,21 @@
 #include "clickboard_config.h"
 #include "mqtt.h"
 
+//#define TESTMQTT
+
 /*-----------------------------------------------------------*/
 static void prvTestTask( void *pvParameters )
 {
+#ifdef TESTMQTT
 	QueueHandle_t xMqttQueue;
 	MqttJob_t xMqttJob;
 	MqttPublishMsg_t xPublish;
-	char buffer[12];
+	char buffer[16];
 	char topic [14] = "testtopic/5";
 	int i = 0;
 	vTaskDelay(5000);
 
-	DEBUGOUT( "Test task running.\r\n" );
+	DEBUGOUT( "Test task running. -> Test MQTT\n" );
 
 	/* Add endless loop here to prevent task deletion. */
 	xMqttQueue = xInitMQTT();
@@ -90,6 +93,7 @@ static void prvTestTask( void *pvParameters )
 	}
 	xMqttJob.eJobType = eDisconnect;
 	xQueueSendToBack( xMqttQueue, &xMqttJob, 0 );
+#endif
 
 	vTaskDelete( NULL );
 

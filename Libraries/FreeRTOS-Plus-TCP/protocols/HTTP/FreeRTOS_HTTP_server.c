@@ -69,8 +69,7 @@
 
 /* FreeRTOS Protocol includes. */
 #include "FreeRTOS_HTTP_commands.h"
-#include "FreeRTOS_TCP_server.h"
-#include "FreeRTOS_server_private.h"
+#include "FreeRTOS_HTTP_server.h"
 
 /* FreeRTOS+FAT includes. */
 #include "ff_stdio.h"
@@ -104,6 +103,8 @@
 static void prvFileClose( HTTPClient_t *pxClient );
 static BaseType_t prvProcessCmd( HTTPClient_t *pxClient, BaseType_t xIndex );
 static const char *pcGetContentsType( const char *apFname );
+static char *strnew( const char *pcString );
+static void prvRemoveSlash( char *pcDir );
 static BaseType_t prvOpenURL( HTTPClient_t *pxClient );
 static BaseType_t prvSendFile( HTTPClient_t *pxClient );
 static BaseType_t prvSendReply( HTTPClient_t *pxClient, BaseType_t xCode );
@@ -135,26 +136,6 @@ static TypeCouple_t pxTypeCouples[ ] =
 	{ "ttc",  "application/x-font-ttf" }
 };
 
-void vHTTPClientDelete( TCPClient_t *pxTCPClient )
-{
-HTTPClient_t *pxClient = ( HTTPClient_t * ) pxTCPClient;
-
-	/* This HTTP client stops, close / release all resources. */
-	if( pxClient->xSocket != FREERTOS_NO_SOCKET )
-	{
-		/* Check if socket is a reused listen socket and let it listen again. */
-		if( FreeRTOS_listen( pxClient->xSocket, 0 ) != 0 )
-		{
-			/* Otherwise it must be a child socket which will be closed now. */
-			FreeRTOS_FD_CLR( pxClient->xSocket, pxClient->pxParent->xSocketSet, eSELECT_ALL );
-			FreeRTOS_closesocket( pxClient->xSocket );
-			pxClient->xSocket = FREERTOS_NO_SOCKET;
-		}
-	}
-	prvFileClose( pxClient );
-}
-/*-----------------------------------------------------------*/
-
 static void prvFileClose( HTTPClient_t *pxClient )
 {
 	if( pxClient->pxFileHandle != NULL )
@@ -168,7 +149,7 @@ static void prvFileClose( HTTPClient_t *pxClient )
 
 static BaseType_t prvSendReply( HTTPClient_t *pxClient, BaseType_t xCode )
 {
-struct xTCP_SERVER *pxParent = pxClient->pxParent;
+struct xHTTP_SERVER *pxParent = pxClient->pxParent;
 BaseType_t xRc;
 
 	/* A normal command reply on the main socket (port 21). */
@@ -176,16 +157,13 @@ BaseType_t xRc;
 
 	xRc = snprintf( pcBuffer, sizeof( pxParent->pcFileBuffer ),
 		"HTTP/1.1 %d %s\r\n"
-#if	USE_HTML_CHUNKS
-		"Transfer-Encoding: chunked\r\n"
-#endif
 		"Content-Type: %s\r\n"
-		"Connection: keep-alive\r\n"
-//		"Connection: close\r\n"
+		"Connection: %s\r\n"
 		"%s\r\n",
 		( int ) xCode,
 		webCodename (xCode),
 		pxParent->pcContentsType[0] ? pxParent->pcContentsType : "text/html",
+		pxParent->pcConnection[0] ? pxParent->pcConnection : "close",
 		pxParent->pcExtraContents );
 
 	pxParent->pcContentsType[0] = '\0';
@@ -217,7 +195,8 @@ BaseType_t xSockOptValue;
 		xSockOptValue = pdTRUE_UNSIGNED;
 		FreeRTOS_setsockopt( pxClient->xSocket, 0, FREERTOS_SO_SET_FULL_SIZE, ( void * ) &xSockOptValue, sizeof( xSockOptValue ) );
 
-		strcpy( pxClient->pxParent->pcContentsType, pcGetContentsType( pxClient->pcCurrentFilename ) );
+		strncpy( pxClient->pxParent->pcConnection, "keep-alive", sizeof( pxClient->pxParent->pcConnection ) );
+		strncpy( pxClient->pxParent->pcContentsType, pcGetContentsType( pxClient->pcCurrentFilename ), sizeof( pxClient->pxParent->pcContentsType ) );
 		snprintf( pxClient->pxParent->pcExtraContents, sizeof( pxClient->pxParent->pcExtraContents ),
 			"Content-Encoding: gzip\r\n"
 			"Content-Length: %d\r\n", ( int ) pxClient->uxBytesLeft );
@@ -296,6 +275,7 @@ char pcChunkSize[8];
 		xSockOptValue = pdTRUE_UNSIGNED;
 		FreeRTOS_setsockopt( pxClient->xSocket, 0, FREERTOS_SO_SET_FULL_SIZE, ( void * ) &xSockOptValue, sizeof( xSockOptValue ) );
 
+		strncpy( pxClient->pxParent->pcConnection, "keep-alive", sizeof( pxClient->pxParent->pcConnection ) );
 		strncpy( pxClient->pxParent->pcContentsType, "application/json", sizeof( pxClient->pxParent->pcContentsType ) );
 		strncpy( pxClient->pxParent->pcExtraContents, "Transfer-Encoding: chunked\r\n", sizeof( pxClient->pxParent->pcExtraContents ) );
 
@@ -331,6 +311,7 @@ char pcChunkSize[8];
 
 	return xRc;
 }
+/*-----------------------------------------------------------*/
 
 static BaseType_t prvOpenURL( HTTPClient_t *pxClient )
 {
@@ -366,7 +347,7 @@ char pcSlash[ 2 ];
 		pcSlash,
 		pxClient->pcUrlData);
 
-	/* ML: redirect root to index.html. */
+	/* _ML_: redirect root to index.html. */
 	if( strcmp( pxClient->pcCurrentFilename, "/" ) == 0 )
 	{
 		strcpy( pxClient->pcCurrentFilename, ipconfigHTTP_DIRECTORY_INDEX );
@@ -423,81 +404,269 @@ BaseType_t xResult = 0;
 }
 /*-----------------------------------------------------------*/
 
-BaseType_t xHTTPClientWork( TCPClient_t *pxTCPClient )
+BaseType_t xHTTPClientWork( HTTPClient_t *pxClient )
 {
 BaseType_t xRc;
-HTTPClient_t *pxClient = ( HTTPClient_t * ) pxTCPClient;
+TickType_t xTicksToWait = pdMS_TO_TICKS( 5000 );
 
 	if( pxClient->pxFileHandle != NULL )
 	{
 		prvSendFile( pxClient );
 	}
-
-	xRc = FreeRTOS_recv( pxClient->xSocket, ( void * )pcCOMMAND_BUFFER, sizeof( pcCOMMAND_BUFFER ), 0 );
-
-	if( xRc > 0 )
+	else
 	{
-	BaseType_t xIndex;
-	const char *pcEndOfCmd;
-	const struct xWEB_COMMAND *curCmd;
-	char *pcBuffer = pcCOMMAND_BUFFER;
 
-		if( xRc < ( BaseType_t ) sizeof( pcCOMMAND_BUFFER ) )
+		xRc = FreeRTOS_recv( pxClient->xSocket, ( void * )pcCOMMAND_BUFFER, sizeof( pcCOMMAND_BUFFER ), 0 );
+
+		if( xRc > 0 )
 		{
-			pcBuffer[ xRc ] = '\0';
-		}
-		while( xRc && ( pcBuffer[ xRc - 1 ] == 13 || pcBuffer[ xRc - 1 ] == 10 ) )
-		{
-			pcBuffer[ --xRc ] = '\0';
-		}
-		pcEndOfCmd = pcBuffer + xRc;
+		BaseType_t xIndex;
+		const char *pcEndOfCmd;
+		const struct xWEB_COMMAND *curCmd;
+		char *pcBuffer = pcCOMMAND_BUFFER;
 
-		curCmd = xWebCommands;
-
-		/* Pointing to "/index.html HTTP/1.1". */
-		pxClient->pcUrlData = pcBuffer;
-
-		/* Pointing to "HTTP/1.1". */
-		pxClient->pcRestData = pcEmptyString;
-
-		/* Last entry is "ECMD_UNK". */
-		for( xIndex = 0; xIndex < WEB_CMD_COUNT - 1; xIndex++, curCmd++ )
-		{
-		BaseType_t xLength;
-
-			xLength = curCmd->xCommandLength;
-			if( ( xRc >= xLength ) && ( memcmp( curCmd->pcCommandName, pcBuffer, xLength ) == 0 ) )
+			if( xRc < ( BaseType_t ) sizeof( pcCOMMAND_BUFFER ) )
 			{
-			char *pcLastPtr;
+				pcBuffer[ xRc ] = '\0';
+			}
+			while( xRc && ( pcBuffer[ xRc - 1 ] == 13 || pcBuffer[ xRc - 1 ] == 10 ) )
+			{
+				pcBuffer[ --xRc ] = '\0';
+			}
+			pcEndOfCmd = pcBuffer + xRc;
 
-				pxClient->pcUrlData += xLength + 1;
-				for( pcLastPtr = (char *)pxClient->pcUrlData; pcLastPtr < pcEndOfCmd; pcLastPtr++ )
+			curCmd = xWebCommands;
+
+			/* Pointing to "/index.html HTTP/1.1". */
+			pxClient->pcUrlData = pcBuffer;
+
+			/* Pointing to "HTTP/1.1". */
+			pxClient->pcRestData = pcEmptyString;
+
+			/* Last entry is "ECMD_UNK". */
+			for( xIndex = 0; xIndex < WEB_CMD_COUNT - 1; xIndex++, curCmd++ )
+			{
+			BaseType_t xLength;
+
+				xLength = curCmd->xCommandLength;
+				if( ( xRc >= xLength ) && ( memcmp( curCmd->pcCommandName, pcBuffer, xLength ) == 0 ) )
 				{
-					char ch = *pcLastPtr;
-					if( ( ch == '\0' ) || ( strchr( "\n\r \t", ch ) != NULL ) )
+				char *pcLastPtr;
+
+					pxClient->pcUrlData += xLength + 1;
+					for( pcLastPtr = (char *)pxClient->pcUrlData; pcLastPtr < pcEndOfCmd; pcLastPtr++ )
 					{
-						*pcLastPtr = '\0';
-						pxClient->pcRestData = pcLastPtr + 1;
-						break;
+						char ch = *pcLastPtr;
+						if( ( ch == '\0' ) || ( strchr( "\n\r \t", ch ) != NULL ) )
+						{
+							*pcLastPtr = '\0';
+							pxClient->pcRestData = pcLastPtr + 1;
+							break;
+						}
 					}
+					break;
 				}
-				break;
+			}
+
+			if( xIndex < WEB_CMD_COUNT - 1 )
+			{
+				xRc = prvProcessCmd( pxClient, xIndex );
+			}
+
+			/* Received data, refresh timeout. */
+			vTaskSetTimeOutState( &pxClient->xTimeOut );
+			pxClient->xTicksToWait = xTicksToWait;
+			pxClient->bits.bShutdownInitiated = pdFALSE_UNSIGNED;
+		}
+		else if( xRc < 0 )
+		{
+			/* The connection will be closed and the client will be deleted. */
+			FreeRTOS_printf( ( "xHTTPClientWork: rc = %ld\n", xRc ) );
+		}
+		else
+		{
+			/* Check for timeout. */
+			if( pxClient->bits.bShutdownInitiated == pdFALSE_UNSIGNED )
+			{
+				if( xTaskCheckForTimeOut( &pxClient->xTimeOut, &pxClient->xTicksToWait ) != pdFALSE )
+				{
+					/* Try to gracefully shutdown connection. */
+					FreeRTOS_printf( ( "xHTTPClientWork: keep-alive timed out, shutdown connection.\r\n" ) );
+					FreeRTOS_shutdown( pxClient->xSocket, FREERTOS_SHUT_RDWR );
+					pxClient->bits.bShutdownInitiated = pdTRUE_UNSIGNED;
+				}
 			}
 		}
-
-		if( xIndex < WEB_CMD_COUNT - 1 )
-		{
-			xRc = prvProcessCmd( pxClient, xIndex );
-		}
-	}
-	else if( xRc < 0 )
-	{
-		/* The connection will be closed and the client will be deleted. */
-		FreeRTOS_printf( ( "xHTTPClientWork: rc = %ld\n", xRc ) );
 	}
 	return xRc;
 }
 /*-----------------------------------------------------------*/
+
+void vHTTPClientDelete( HTTPClient_t *pxClient )
+{
+	/* This HTTP client stops, close / release all resources. */
+	if( pxClient->xSocket != FREERTOS_NO_SOCKET )
+	{
+
+		/* Check if socket is a reused listen socket and let it listen again. */
+		if( FreeRTOS_listen( pxClient->xSocket, 0 ) != 0 )
+		{
+			/* Otherwise it must be a child socket which will be closed now. */
+			FreeRTOS_FD_CLR( pxClient->xSocket, pxClient->pxParent->xSocketSet, eSELECT_ALL );
+			FreeRTOS_closesocket( pxClient->xSocket );
+			pxClient->xSocket = FREERTOS_NO_SOCKET;
+		}
+	}
+	prvFileClose( pxClient );
+}
+/*-----------------------------------------------------------*/
+
+static HTTPServer_t xServer = { 0 };
+
+HTTPServer_t *FreeRTOS_CreateHTTPServer( const struct xSERVER_CONFIG *pxConfig )
+{
+BaseType_t xPortNumber = pxConfig->xPortNumber;
+SocketSet_t xSocketSet;
+Socket_t xSocket;
+struct freertos_sockaddr xAddress;
+BaseType_t xTrueValue = pdTRUE;
+TickType_t xNoTimeout = 0;
+
+	xSocketSet = FreeRTOS_CreateSocketSet();
+
+	if( xSocketSet != NULL )
+	{
+		xServer.xSocketSet = xSocketSet;
+
+		if( xPortNumber > 0 )
+		{
+			xSocket = FreeRTOS_socket( FREERTOS_AF_INET, FREERTOS_SOCK_STREAM, FREERTOS_IPPROTO_TCP );
+			FreeRTOS_printf( ( "TCP socket on port %d\n", ( int ) xPortNumber ) );
+
+			if( xSocket != FREERTOS_NO_SOCKET )
+			{
+				xAddress.sin_addr = FreeRTOS_GetIPAddress(); // Single NIC, currently not used
+				xAddress.sin_port = FreeRTOS_htons( xPortNumber );
+
+				FreeRTOS_bind( xSocket, &xAddress, sizeof( xAddress ) );
+				FreeRTOS_listen( xSocket, pxConfig->xBackLog );
+				if( pxConfig->xBackLog == 0 ) {
+					/* _ML_ Do not create child sockets, instead reuse listen socket.
+					This limits the server to just one active connection at a time. */
+					FreeRTOS_setsockopt( xSocket, 0, FREERTOS_SO_REUSE_LISTEN_SOCKET, ( void * ) &xTrueValue, sizeof( xTrueValue ) );
+				}
+
+				FreeRTOS_setsockopt( xSocket, 0, FREERTOS_SO_RCVTIMEO, ( void * ) &xNoTimeout, sizeof( BaseType_t ) );
+				FreeRTOS_setsockopt( xSocket, 0, FREERTOS_SO_SNDTIMEO, ( void * ) &xNoTimeout, sizeof( BaseType_t ) );
+
+				#if( ipconfigHTTP_RX_BUFSIZE > 0 )
+				{
+					WinProperties_t xWinProps;
+
+					memset( &xWinProps, '\0', sizeof( xWinProps ) );
+					/* The parent socket itself won't get connected. The properties below
+					will be inherited by each new child socket. */
+					xWinProps.lTxBufSize = ipconfigHTTP_TX_BUFSIZE;
+					xWinProps.lTxWinSize = ipconfigHTTP_TX_WINSIZE;
+					xWinProps.lRxBufSize = ipconfigHTTP_RX_BUFSIZE;
+					xWinProps.lRxWinSize = ipconfigHTTP_RX_WINSIZE;
+
+					/* Set the window and buffer sizes. */
+					FreeRTOS_setsockopt( xSocket, 0, FREERTOS_SO_WIN_PROPERTIES, ( void * ) &xWinProps,	sizeof( xWinProps ) );
+				}
+				#endif
+
+				FreeRTOS_FD_SET( xSocket, xSocketSet, eSELECT_READ|eSELECT_EXCEPT );
+				xServer.xSocket = xSocket;
+				xServer.pcRootDir = strnew( pxConfig->pcRootDir );
+				prvRemoveSlash( ( char * ) xServer.pcRootDir );
+			}
+		}
+	}
+
+	return  &xServer;
+}
+/*-----------------------------------------------------------*/
+
+
+void FreeRTOS_HTTPServerWork( HTTPServer_t *pxServer, TickType_t xBlockingTime )
+{
+struct freertos_sockaddr xAddress;
+HTTPClient_t *pxClient = NULL, *pxThis;
+Socket_t xNexSocket;
+socklen_t xSocketLength;
+BaseType_t xRc;
+BaseType_t xSize;
+TickType_t xTicksToWait = pdMS_TO_TICKS( 5000 );
+
+	//FreeRTOS_printf( ( "HTTPServerWork: called\n" ) );
+
+	/* Let the server do one working cycle. */
+	xRc = FreeRTOS_select( pxServer->xSocketSet, xBlockingTime );
+
+	if( FreeRTOS_FD_ISSET( pxServer->xSocket, pxServer->xSocketSet ) != 0 )
+	{
+		/* Accept connection, if the listening socket has enough free
+		connections left. */
+		xSocketLength = sizeof( xAddress );
+		xNexSocket = FreeRTOS_accept( pxServer->xSocket, &xAddress, &xSocketLength);
+		if( ( xNexSocket != FREERTOS_NO_SOCKET ) && ( xNexSocket != FREERTOS_INVALID_SOCKET ) )
+		{
+			//FreeRTOS_printf( ( "HTTPServerWork: add new client\n" ) );
+
+			/* Add new client connection in front of list. */
+			xSize = sizeof( HTTPClient_t );
+			pxClient = ( HTTPClient_t* ) pvPortMallocLarge( xSize );
+			memset( pxClient, 0, xSize );
+
+			if( pxClient != NULL )
+			{
+				pxClient->pcRootDir = pxServer->pcRootDir;
+				pxClient->pxParent = pxServer;
+				pxClient->xSocket = xNexSocket;
+				pxClient->pxNextClient = pxServer->pxClients;
+				pxServer->pxClients = pxClient;
+				FreeRTOS_FD_SET( xNexSocket, pxServer->xSocketSet, eSELECT_READ|eSELECT_EXCEPT );
+
+				/* Established connection, set timeout. */
+				vTaskSetTimeOutState( &pxClient->xTimeOut );
+				pxClient->xTicksToWait = xTicksToWait;
+				pxClient->bits.bShutdownInitiated = pdFALSE_UNSIGNED;
+			}
+			else
+			{
+				FreeRTOS_closesocket( xNexSocket );
+			}
+		}
+	}
+
+	pxClient = pxServer->pxClients;
+	while( pxClient != NULL )
+	{
+		pxThis = pxClient;
+		pxClient = pxThis->pxNextClient;
+
+		//FreeRTOS_printf( ( "HTTPServerWork: do client work\n" ) );
+
+		xRc = xHTTPClientWork( pxThis );
+
+		if (xRc < 0 )
+		{
+			if( pxServer->pxClients == pxThis )
+			{
+				pxServer->pxClients = pxClient;
+			}
+
+			/* Close handles, resources */
+			vHTTPClientDelete( pxThis );
+			/* Free the space */
+			vPortFreeLarge( pxThis );
+			pxThis = NULL;
+		}
+	}
+}
+/*-----------------------------------------------------------*/
+
 
 static const char *pcGetContentsType (const char *apFname)
 {
@@ -529,4 +698,31 @@ static const char *pcGetContentsType (const char *apFname)
 	}
 	return pcResult;
 }
+/*-----------------------------------------------------------*/
 
+static char *strnew( const char *pcString )
+{
+BaseType_t xLength;
+char *pxBuffer;
+
+	xLength = strlen( pcString ) + 1;
+	pxBuffer = ( char * ) pvPortMalloc( xLength );
+	if( pxBuffer != NULL )
+	{
+		memcpy( pxBuffer, pcString, xLength );
+	}
+
+	return pxBuffer;
+}
+/*-----------------------------------------------------------*/
+
+static void prvRemoveSlash( char *pcDir )
+{
+BaseType_t xLength = strlen( pcDir );
+
+	while( ( xLength > 0 ) && ( pcDir[ xLength - 1 ] == '/' ) )
+	{
+		pcDir[ --xLength ] = '\0';
+	}
+}
+/*-----------------------------------------------------------*/

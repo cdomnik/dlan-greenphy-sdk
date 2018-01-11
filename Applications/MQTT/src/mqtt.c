@@ -48,6 +48,23 @@ static TaskHandle_t xMqttTaskHandle = NULL;
  * |          Functions         |
  * ------------------------------ */
 /***********************************************************************************************************
+ *   function: vCleanTopic
+ *   Purpose: Search for '/' and replace with '?'
+ *   Parameter: xAction - specify what the function will do
+ *   Returns: pdPASS - Initializing / Setting done
+ *   		  -44 - xAction has unsupported value
+ *   		  xPubCounter (xAction = eGet)
+ ***********************************************************************************************************/
+void vCleanTopic( char *pcTopic )
+{
+	int i;
+	for(i = 0; i < strlen( pcTopic ); i++)
+	{
+		if( pcTopic[i] == 47 )
+			pcTopic[i] = 63;
+	}
+}
+/***********************************************************************************************************
  *   function: xManagePubCounter
  *   Purpose: Handle the pubcounter Variable, allow initialzising to 0, set to counter +1 and getting the counter
  *   Parameter: xAction - specify what the function will do
@@ -132,14 +149,44 @@ void vCloseSocket( Socket_t xSocket )
  *   Parameter: eConfigTag_t eConfigMqtt - Tag specifies which parameter should be read (same name as in config)
  *   			void *pvBuffer - return buffer for the read data
  ***********************************************************************************************************/
+/*void *pvGetCredentials( eConfigTag_t eConfigMqtt )
+{
+	void *pvValue = NULL;
+	uint16_t uiLength = 0;
+	pvValue = pvGetConfig( eConfigMqtt, &uiLength );
+	if (( pvValue != NULL ) && ( uiLength > 0 ))
+	{
+		char *pcHelp = (char *)pvValue;
+		pcHelp[uiLength - 1] = '\0';
+	}
+	return pvValue;
+}
 void vGetCredentials( eConfigTag_t eConfigMqtt, void *pvBuffer )
 {
 	void *pvValue = NULL;
-	pvValue = pvGetConfig( eConfigMqtt, NULL );
-	if( pvValue != NULL )
-		pvBuffer = pvValue;
-}
+	uint16_t uiLength = 0;
+	pvValue = pvGetConfig( eConfigMqtt, &uiLength );
+	if (( pvValue != NULL ) && ( uiLength > 0 ))
+	{
+		pvValue[uiLength - 1] = '\0';
+		memcpy( pvBuffer, pvValue, uiLength);
+	}
+}*/
 
+
+/***********************************************************************************************************
+ *   function: vSetCredentials
+ *   Purpose: Set Parameter in Config. Will not write Config into the flash.
+ *   Parameter: eConfigTag_t eConfigMqtt - Tag specifies which parameter should be set (same name as in config)
+ *   			void *pvBuffer - Pointer to data which sould be written in config
+ ***********************************************************************************************************/
+void vSetCredentials( eConfigTag_t eConfigMqtt, void *pvBuffer, uint16_t usSize )
+{
+	if( pvBuffer != NULL )
+		pvSetConfig( eConfigMqtt, usSize + 1, pvBuffer );
+	else
+		pvSetConfig( eConfigMqtt, 0, NULL);
+}
 
 
 /***********************************************************************************************************
@@ -151,36 +198,76 @@ void vGetCredentials( eConfigTag_t eConfigMqtt, void *pvBuffer )
  ***********************************************************************************************************/
 BaseType_t xConnect( MQTTClient *pxClient, Network *pxNetwork )
 {
-	char *pcBroker = netconfigMQTT_BROKER;
-	BaseType_t xPort = netconfigMQTT_PORT;
-	MQTTPacket_connectData connectData = MQTTCREDENTIALS_INIT;
+	/*char pcBroker[20];
+	BaseType_t xPort = mqttconfigPORT;
+	BaseType_t *pxPortBuf = NULL;
+	char pcClient[30];
+	char pcUser[42];
+	char pcPasswd[20];
+	unsigned char *pucWillBuf = NULL;*/
+	char *pcBroker;
+	BaseType_t *pxPort;
+	unsigned char *pucWill;
+	MQTTPacket_connectData connectData = MQTTPacket_connectData_initializer;
 
-	vGetCredentials( eConfigMqttBroker, pcBroker );
-	vGetCredentials( eConfigMqttPort, &xPort );
+	/*
+	strcpy( pcBroker, mqttconfigBROKER );
+	strcpy( pcClient, mqttconfigCLIENT );
+	strcpy( pcUser, mqttconfigUSER );
+	strcpy( pcPasswd, mqttconfigPWD );
+	*/
 
-	/* Establish TCP connection to broker. No MQTT Connection at this point */
-	if( NetworkConnect( pxNetwork, pcBroker, xPort ) != 0 )
+	pcBroker = (char *)pvGetConfig( eConfigMqttBroker, NULL );
+	pxPort = (BaseType_t *)pvGetConfig( eConfigMqttPort, NULL );
+	/*vGetCredentials( eConfigMqttBroker, pcBroker );
+	pxPortBuf = (BaseType_t *)pvGetConfig( eConfigMqttPort, NULL );
+	if( pxPortBuf != NULL )
+		xPort = *pxPortBuf;*/
+
+	if(( pcBroker == NULL ) || ( pxPort == NULL ))
 	{
-		DEBUGOUT("MQTT-Error 0x0111: Error while NetworkConnect. %s, Port %d", pcBroker, xPort);
+		DEBUGOUT("MQTT-Error 0x0113: No Credentials.");
+		return pdFAIL;
+	}
+	/* Establish TCP connection to broker. No MQTT Connection at this point */
+	if( NetworkConnect( pxNetwork, pcBroker, *pxPort ) != 0 )
+	{
+		DEBUGOUT("MQTT-Error 0x0111: Error while NetworkConnect. %s, Port %d\n", pcBroker, *pxPort);
 		vCloseSocket( pxClient->ipstack->my_socket );
 		pxClient->ipstack->my_socket = NULL;
 		return pdFAIL;
 	}
 
-	/* Get the credentials */
-	vGetCredentials( eConfigMqttClientID, connectData.clientID.cstring );
-	vGetCredentials( eConfigMqttUser, connectData.username.cstring );
-	vGetCredentials( eConfigMqttPassWD, connectData.password.cstring );
+	connectData.clientID.cstring = (char *)pvGetConfig( eConfigMqttClientID, NULL );
+	connectData.username.cstring = (char *)pvGetConfig( eConfigMqttUser, NULL );
+	connectData.password.cstring = (char *)pvGetConfig( eConfigMqttPassWD, NULL );
+	pucWill = (unsigned char *)pvGetConfig( eConfigMqttWill, NULL );
+	if( pucWill != NULL )
+		connectData.willFlag = *pucWill;
+	if( connectData.willFlag > 0 )
+	{
+		connectData.will.qos = 2;
+		connectData.will.retained = 1;
+		connectData.will.topicName.cstring = (char *)pvGetConfig( eConfigMqttWillTopic, NULL );
+		connectData.will.message.cstring = (char *)pvGetConfig( eConfigMqttWillMsg, NULL );
+	}
+	/* Get the credentials */ // change
+	/*vGetCredentials( eConfigMqttClientID, pcClient );
+	vGetCredentials( eConfigMqttUser, pcUser );
+	vGetCredentials( eConfigMqttPassWD, pcPasswd );
 	vGetCredentials( eConfigMqttWill, &(connectData.willFlag) );
+	pucWillBuf = (BaseType_t *)pvGetConfig( eConfigMqttWill, NULL );
+		if( pucWillBuf != NULL )
+			(connectData.willFlag) = *pucWillBuf;
 	if( connectData.willFlag )
 	{
-		vGetCredentials( eConfigMqttWillTopic, connectData.will.topicName.cstring );
-		vGetCredentials( eConfigMqttWillMsg, connectData.will.message.cstring );
-	}
+		connectData.will.topicName.cstring = (char *)pvGetDonfig( eConfigMqttWillTopic, NULL );
+		connectData.will.message.cstring = (char *)pvGetDonfig( eConfigMqttWillMsg, NULL );
+	}*/
 	/* Connect to MQTT Broker */
 	if( MQTTConnect( pxClient, &connectData ) != 0 )
 	{
-		DEBUGOUT("MQTT-Error 0x0112: MQTTConnect failed.");
+		DEBUGOUT("MQTT-Error 0x0112: MQTTConnect failed.\n");
 		vCloseSocket( pxClient->ipstack->my_socket );
 		pxClient->ipstack->my_socket = NULL;
 		return pdFAIL;
@@ -221,9 +308,13 @@ void vMQTTTask( void *pvParameters )
 		/* -------------------- Check if task is working normal -------------------- */
 		if(( xClient.isconnected != 1 ) && ( xClient.ipstack->my_socket != NULL ))
 		{
-			DEBUGOUT("MQTT-Error 0x0150: Connection lost. Will close Socket.\n");
+			DEBUGOUT("MQTT-Error 0x0150: Connection lost. Try to reestablish connection.\n");
 			vCloseSocket( xClient.ipstack->my_socket );
 			xClient.ipstack->my_socket = NULL;
+			xManageUptime( eSet );
+			xJob.eJobType = eConnect;
+			xQueueSendToBack( xMqttQueueHandle, &xJob, 0 );
+
 		}
 
 		/* -------------------- Get the next job from the queue -------------------- */
@@ -239,7 +330,7 @@ void vMQTTTask( void *pvParameters )
 			case eConnect:
 				if( xClient.isconnected == 0 )
 				{
-					DEBUGOUT(" ** Info ** MQTT Connect\n");
+					MQTT_INFO(" ** Info ** MQTT Connect\n");
 					if( xConnect( &xClient, &xNetwork ) != pdPASS )
 						DEBUGOUT("MQTT-Error 0x0110: Unable to connect to MQTT Broker.\n");
 				}
@@ -248,7 +339,7 @@ void vMQTTTask( void *pvParameters )
 			case eDisconnect:
 				if( xClient.isconnected )
 				{
-					DEBUGOUT(" ** Info ** MQTT Disconnect\n");
+					MQTT_INFO(" ** Info ** MQTT Disconnect\n");
 					MQTTDisconnect( &xClient );
 				}
 				/* Clean up the tcp socket save */
@@ -258,19 +349,19 @@ void vMQTTTask( void *pvParameters )
 				break;
 
 			case ePublish:
+				pxPubMsg = (MqttPublishMsg_t *) xJob.data;
 				if( xClient.isconnected )
 				{
-					DEBUGOUT(" ** Info ** MQTT Publish\n");
-					pxPubMsg = (MqttPublishMsg_t *) xJob.data;
+					MQTT_INFO(" ** Info ** MQTT Publish\n");
 					if( MQTTPublish( &xClient, (pxPubMsg->pucTopic), &( pxPubMsg->xMessage ) ) != SUCCESS_MQTT)
 					{
 						DEBUGOUT("MQTT-Error 0x0130: Could not publish Message.\n");
 					}
 					xManagePubCounter( eSet );
-					pxPubMsg->xMessage.payload = NULL;
 				}
 				else
-					DEBUGOUT("MQTT-Error: 0x0131: Client lost connection. Publish will be discarded.\n");
+					MQTT_INFO("MQTT-Error: 0x0131: No connection established. Publish will be discarded.\n");
+				pxPubMsg->xMessage.payload = NULL;
 				break;
 
 			case eSubscribe:
@@ -279,14 +370,14 @@ void vMQTTTask( void *pvParameters )
 			case eRecieve:
 				if( xClient.isconnected )
 				{
-					DEBUGOUT(" ** Info ** MQTT Yield\n");
+					MQTT_INFO(" ** Info ** MQTT Yield\n");
 					if ( MQTTYield( &xClient, MQTTRECEIVE_TIMEOUT ) != SUCCESS_MQTT )
 						DEBUGOUT("MQTT-Error 0x0140: MQTTYield failed.\n");
 				}
 				break;
 
 			case eKill:
-				DEBUGOUT(" ** Info ** MQTT Kill\n");
+				MQTT_INFO(" ** Info ** MQTT Kill\n");
 				/* Clean up Queue */
 				vQueueDelete( xMqttQueueHandle );
 				xMqttQueueHandle = NULL;
@@ -319,14 +410,24 @@ void vMQTTTask( void *pvParameters )
 	 *   Global Variables used: xMqttQueueHandle, xMqttTaskHandle
 	 *   Parameter: void *pvParameters - not used currently
 	 ***********************************************************************************************************/
-	static BaseType_t xMQTTRequestHandler( char *pcBuffer, size_t uxBufferLength, QueryParam_t *pxParams, BaseType_t xParamCount )
+	static BaseType_t xMQTTRequestHandler( char *pcBuffer, size_t uxBufferLength, QueryParam_t *pxParams, BaseType_t xParamCount ) //TODO change
 	{
 		BaseType_t xCount = 0;
 		QueryParam_t *pxParam;
 		MqttJob_t xManageJob;
 
+		/*unsigned char ucWill;
+		char *pcBroker = netconfigMQTT_BROKER;
+		BaseType_t xPort = netconfigMQTT_PORT;
+		MQTTPacket_connectData connectData = MQTTCREDENTIALS_INIT;*/
+		char *pcCredBuffer;
+		unsigned char ucWill;
+		unsigned char *pucWillBuf;
+		BaseType_t xPort;
+		BaseType_t *pxPort;
+
 		pxParam = pxFindKeyInQueryParams( "toggle", pxParams, xParamCount );
-		if( pxParam != NULL )
+		if(( pxParam != NULL ) && ( xMqttQueueHandle != NULL ))
 		{
 			if( xManageUptime( eGet ) < 0 )
 				xManageJob.eJobType = eConnect;
@@ -336,34 +437,100 @@ void vMQTTTask( void *pvParameters )
 			xQueueSendToBack( xMqttQueueHandle, &xManageJob, 0 );
 		}
 
+		/* ------------------ Check for Broker Parameter ------------------*/
+		pxParam = pxFindKeyInQueryParams( "broker", pxParams, xParamCount );
+		if( pxParam != NULL )
+			vSetCredentials( eConfigMqttBroker, pxParam->pcValue, strlen(pxParam->pcValue) );
 
-		char *pcBroker = netconfigMQTT_BROKER;
-		BaseType_t xPort = netconfigMQTT_PORT;
-		MQTTPacket_connectData connectData = MQTTCREDENTIALS_INIT;
-
-		vGetCredentials( eConfigMqttBroker, pcBroker );
-		vGetCredentials( eConfigMqttPort, &xPort );
-		xCount += sprintf( pcBuffer, "{\"mqttUptime\":%d,\"mqttPubMsg\":%d,\"bad\":\"%s\",\"bpd\":%d", xManageUptime( eGet ), xManagePubCounter( eGet ), pcBroker, xPort );
-
-		vGetCredentials( eConfigMqttClientID, connectData.clientID.cstring );
-		if( connectData.clientID.cstring != NULL)
-			xCount += sprintf( pcBuffer + xCount, ",\"cID\":\"%s\"", connectData.clientID.cstring );
-
-		vGetCredentials( eConfigMqttUser, connectData.username.cstring );
-		if( connectData.username.cstring != NULL )
-			xCount += sprintf( pcBuffer + xCount, ",\"user\":\"%s\"", connectData.username.cstring );
-
-		vGetCredentials( eConfigMqttPassWD, connectData.password.cstring );
-		if( connectData.password.cstring != NULL )
-			xCount += sprintf( pcBuffer + xCount, ",\"pwd\":\"%s\"", connectData.password.cstring );
-
-		vGetCredentials( eConfigMqttWill, &(connectData.willFlag) );
-		if( connectData.willFlag )
+		/* ------------------ Check for Port Parameter ------------------*/
+		pxParam = pxFindKeyInQueryParams( "port", pxParams, xParamCount );
+		if( pxParam != NULL )
 		{
-			vGetCredentials( eConfigMqttWillTopic, connectData.will.topicName.cstring );
-			vGetCredentials( eConfigMqttWillMsg, connectData.will.message.cstring );
-			xCount += sprintf( pcBuffer + (xCount -1), ",\"will\":1,\"wtp\":\"%s\",\"wms\":\"%s\"", connectData.willFlag, connectData.will.message.cstring );
+			xPort = strtol( pxParam->pcValue, NULL, 10 );
+			pvSetConfig( eConfigMqttPort, sizeof(xPort), &xPort );
 		}
+
+		/* ------------------ Check for Client Name Parameter ------------------*/
+		pxParam = pxFindKeyInQueryParams( "client", pxParams, xParamCount );
+		if( pxParam != NULL )
+			vSetCredentials( eConfigMqttClientID, pxParam->pcValue, strlen(pxParam->pcValue) );
+
+		/* ------------------ Check for Username Parameter ------------------*/
+		pxParam = pxFindKeyInQueryParams( "user", pxParams, xParamCount );
+		if( pxParam != NULL )
+			vSetCredentials( eConfigMqttUser, pxParam->pcValue, strlen(pxParam->pcValue) );
+
+		/* ------------------ Check for Password Parameter ------------------*/
+		pxParam = pxFindKeyInQueryParams( "password", pxParams, xParamCount );
+		if( pxParam != NULL )
+			vSetCredentials( eConfigMqttPassWD, pxParam->pcValue, strlen(pxParam->pcValue) );
+
+		/* ------------------ Check for Will Parameter ------------------*/
+		pxParam = pxFindKeyInQueryParams( "will", pxParams, xParamCount );
+		if( pxParam != NULL )
+		{
+			if( strcmp( pxParam->pcValue, "on" ) == 0 )
+				ucWill = 1;
+			if( strcmp( pxParam->pcValue, "off" ) == 0 )
+				ucWill = 0;
+			pvSetConfig( eConfigMqttWill, sizeof(ucWill), &ucWill );
+		}
+		/* ------------------ Check for Will Topic Parameter ------------------*/
+		pxParam = pxFindKeyInQueryParams( "willtopic", pxParams, xParamCount );
+		if( pxParam != NULL )
+			vSetCredentials( eConfigMqttWillTopic, pxParam->pcValue, strlen(pxParam->pcValue) );
+
+		/* ------------------ Check for Will Message Parameter ------------------*/
+		pxParam = pxFindKeyInQueryParams( "willmessage", pxParams, xParamCount );
+		if( pxParam != NULL )
+			vSetCredentials( eConfigMqttWillMsg, pxParam->pcValue, strlen(pxParam->pcValue) );
+
+		/*vGetCredentials( eConfigMqttBroker, pcBroker );
+		vGetCredentials( eConfigMqttPort, &xPort );*/
+		xCount += sprintf( pcBuffer, "{\"mqttUptime\":%d,\"mqttPubMsg\":%d", xManageUptime( eGet ), xManagePubCounter( eGet ) );
+
+		pcCredBuffer = (char *)pvGetConfig( eConfigMqttBroker, NULL );
+		if( pcCredBuffer != NULL )
+			xCount += sprintf( pcBuffer + xCount, ",\"bad\":\"%s\"", pcCredBuffer );
+
+		pxPort = (BaseType_t *)pvGetConfig( eConfigMqttPort, NULL );
+		if( pxPort != NULL )
+			xCount += sprintf( pcBuffer + xCount, ",\"bpd\":%d", *pxPort );
+
+
+		//vGetCredentials( eConfigMqttClientID, (connectData.clientID.cstring) );
+		pcCredBuffer = (char *)pvGetConfig( eConfigMqttClientID, NULL );
+		if( pcCredBuffer != NULL)
+			xCount += sprintf( pcBuffer + xCount, ",\"cID\":\"%s\"", pcCredBuffer );
+
+		//vGetCredentials( eConfigMqttUser, (connectData.username.cstring) );
+		pcCredBuffer = (char *)pvGetConfig( eConfigMqttUser, NULL );
+		if( pcCredBuffer != NULL )
+			xCount += sprintf( pcBuffer + xCount, ",\"user\":\"%s\"", pcCredBuffer );
+
+		//vGetCredentials( eConfigMqttPassWD, (connectData.password.cstring) );
+		pcCredBuffer = (char *)pvGetConfig( eConfigMqttPassWD, NULL );
+		if( pcCredBuffer != NULL )
+			xCount += sprintf( pcBuffer + xCount, ",\"pwd\":\"%s\"", pcCredBuffer );
+
+		//vGetCredentials( eConfigMqttWill, &(connectData.willFlag) );
+		pucWillBuf = (char *)pvGetConfig( eConfigMqttWill, NULL );
+		if( pucWillBuf != NULL )
+		{
+			ucWill = *pucWillBuf;
+			if( ucWill > 0 )
+				xCount += sprintf( pcBuffer + xCount, ",\"will\":1" );
+		}
+
+		//vGetCredentials( eConfigMqttWillTopic, (connectData.will.topicName.cstring) );
+		pcCredBuffer = (char *)pvGetConfig( eConfigMqttWillTopic, NULL );
+		if( pcCredBuffer != NULL )
+			xCount += sprintf( pcBuffer + xCount, ",\"wtp\":\"%s\"", pcCredBuffer );
+
+		//vGetCredentials( eConfigMqttWillMsg, (connectData.will.message.cstring) );
+		pcCredBuffer = (char *)pvGetConfig( eConfigMqttWillMsg, NULL );
+		if( pcCredBuffer != NULL )
+			xCount += sprintf( pcBuffer + xCount, ",\"wms\":\"%s\"", pcCredBuffer );
 
 		xCount += sprintf( pcBuffer + xCount, "}");
 
@@ -400,7 +567,7 @@ QueueHandle_t xInitMQTT(void)
 	/* Bevore doing anything check if mqtt is already initialized */
 	if(( xMqttQueueHandle != NULL ) || (xMqttTaskHandle != NULL) )
 	{
-		DEBUGOUT("MQTT-Error 0x0010: Initialization failed. Already initialized.\n");
+		MQTT_INFO("MQTT-Error 0x0010: Initialization failed. Already initialized.\n");
 		return NULL;
 	}
 
@@ -432,7 +599,7 @@ QueueHandle_t xInitMQTT(void)
 		/* Init-Step 3 of 3: Start HTTP Request Handler */
 		xRet = xAddRequestHandler( "mqtt", xMQTTRequestHandler );
 		if( xRet != pdPASS )
-			DEBUGOUT("MQTT-Warning: Failed to add HTTP-Request-Handler. Task will run with saved config.\n");
+			MQTT_INFO("MQTT-Warning: Failed to add HTTP-Request-Handler. Task will run with saved config.\n");
 	#endif
 
 	return xMqttQueueHandle;
@@ -461,7 +628,7 @@ void vDeinitMQTT( void )
 		/* Deinit-Step 2 of X: Check if kill command was send to queue otherwise kill task manually */
 		if( xRet == errQUEUE_FULL )
 		{
-			DEBUGOUT("MQTT-Error 0x0020: Send 'kill' to task failed. Task seems to be unresponsive, will delete it.\n");
+			MQTT_INFO("MQTT-Error 0x0020: Send 'kill' to task failed. Task seems to be unresponsive, will delete it.\n");
 			/* Task could not delete himself, so delete it */
 			vTaskDelete( xMqttTaskHandle );
 			xMqttTaskHandle = NULL;
@@ -482,7 +649,7 @@ void vDeinitMQTT( void )
 		/* Deinit-Step 3 of X: Remove HTTP request handler */
 		xRet = xRemoveRequestHandler( "mqtt" );
 		if( xRet != pdTRUE )
-			DEBUGOUT("MQTT-Warning: Could not remove HTTP request handler from list.\n");
+			MQTT_INFO("MQTT-Warning: Could not remove HTTP request handler from list.\n");
 	#endif /* #if( includeHTTP_DEMO != 0 ) */
 
 }

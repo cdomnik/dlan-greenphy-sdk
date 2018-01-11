@@ -18,18 +18,22 @@
 #define MQTTSEND_BUFFER_SIZE 192 /* Size of MQTT Send Buffer in Bytes */
 #define MQTTCLIENT_TIMEOUT 2000 /* Timeout of the client in ms */
 #define MQTTRECEIVE_TIMEOUT 1000 /* Timeout for MQTTYield, will wait full time, if to low will cause errors */
-//#define MQTTCREDENTIALS_INIT { {'M', 'Q', 'T', 'C'}, 0, 4, \
-			{"TCdqKfhZeQriWr/7PNmy4mw", {0, NULL}}, \
-			120, 1, 0, MQTTPacket_willOptions_initializer, \
-			{"09da8a7e-165e-42b8-96af-fecf366cb89b", {0, NULL}}, \
-			{"wy5t6n.SQBQx", {0, NULL}} }
-#define MQTTCREDENTIALS_INIT { {'M', 'Q', 'T', 'C'}, 0, 4, \
-			{"GreenPHY-2de", {0, NULL}}, \
-			120, 1, 0, MQTTPacket_willOptions_initializer, \
-			{NULL, {0, NULL}}, \
-			{NULL, {0, NULL}} }
-#define netconfigMQTT_BROKER "broker.hivemq.com"
-#define netconfigMQTT_PORT 1883
+
+//#define DEBUG_MQTT
+#ifdef DEBUG_MQTT
+	#define MQTT_INFO( X ) DEBUGOUT( X )
+#else
+	#define MQTT_INFO( X )
+#endif
+
+//#define netconfigMQTT_BROKER "test.mosquitto.org"
+//#define netconfigMQTT_BROKER "broker.hivemq.com"
+/*#define mqttconfigBROKER "mqtt.relayr.io"
+#define mqttconfigPORT 1883
+#define mqttconfigCLIENT "TbB4pUUfPRYyouiIdvIuImA"
+#define mqttconfigUSER "6c1e2951-47cf-458c-a8ba-221dbc8b8898"
+#define mqttconfigPWD "Cl48VyMWDwxZ"
+#define mqttconfigWILL 0*/
 
 #include "MQTTClient.h"
 
@@ -61,7 +65,7 @@ typedef struct {
 	MQTTMessage xMessage;
 } MqttPublishMsg_t;
 
-
+void vCleanTopic( char *pcTopic );
 QueueHandle_t xGetMQTTQueueHandle( void );
 QueueHandle_t xInitMQTT(void);
 void vDeinitMQTT( void );

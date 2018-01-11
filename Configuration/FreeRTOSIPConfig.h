@@ -75,7 +75,7 @@ out the debugging messages. */
 FreeRTOS_netstat() command, and ping replies.  If ipconfigHAS_PRINTF is set to 1
 then FreeRTOS_printf should be set to the function used to print out the
 messages. */
-#define ipconfigHAS_PRINTF                       1
+#define ipconfigHAS_PRINTF                       0
 #if( ipconfigHAS_PRINTF == 1 )
 	#define FreeRTOS_printf(X)                   printf X
 #endif
@@ -310,11 +310,13 @@ real program memory (RAM or flash) or just has a random non-zero value. */
 /* Include support for TCP hang protection.  All sockets in a connecting or
 disconnecting stage will timeout after a period of non-activity. */
 #define ipconfigTCP_HANG_PROTECTION              ( 1 )
-#define ipconfigTCP_HANG_PROTECTION_TIME         ( 30 )
+#define ipconfigTCP_HANG_PROTECTION_TIME         ( 3 )
 
 /* Include support for TCP keep-alive messages. */
 #define ipconfigTCP_KEEP_ALIVE                   ( 0 )
 #define ipconfigTCP_KEEP_ALIVE_INTERVAL          ( 20 ) /* in seconds */
+
+#define tcpMAXIMUM_TCP_WAKEUP_TIME_MS			 ( 5000 )
 
 #define ipconfigHAS_INLINE_FUNCTIONS             1
 #define ipconfigDHCP_REGISTER_HOSTNAME           1
