@@ -37,6 +37,10 @@ long Pressure;
 unsigned long Temperature;
 unsigned int Humidity;
 
+float fTemp;
+float fHum;
+float fPress;
+
 //--------------- Writes data to device - single location
 static void I2C_WriteRegister(char wrAddr, char wrData) {
 	I2C_XFER_T xfer;
@@ -341,23 +345,145 @@ float BME280_GetPressure() {
 
 static void vWeatherTask( void *pvParameters)
 {
+#if( netconfigUSEMQTT != 0 )
+	/* Buffer for Publish Messages, need a buffer for each value,
+	 * because buffer is given to mqtt task and may not be changed anymore
+	 * until mqtt task sets it to NULL */
+	char bufferTemp[34];
+	char bufferHum[32];
+	char bufferPress[36];
+
+	/* Each Job and Publish Variable is needed for each Value because they will be send to the MqttQueue individually */
+	QueueHandle_t xMqttQueue = xGetMQTTQueueHandle();
+	MqttJob_t xTempJob;
+	MqttJob_t xHumJob;
+	MqttJob_t xPressJob;
+	MqttPublishMsg_t xTempPub;
+	MqttPublishMsg_t xHumPub;
+	MqttPublishMsg_t xPressPub;
+
+	/* Set all connection details for Temperature only on this place */
+	xTempJob.eJobType = ePublish;
+	xTempJob.data = (void *) &xTempPub;
+	xTempPub.xMessage.qos = 0;
+	xTempPub.xMessage.retained = 0;
+	xTempPub.xMessage.payload = NULL;
+
+	/* Set all connection details for Humidity only on this place */
+	xHumJob.eJobType = ePublish;
+	xHumJob.data = (void *) &xHumPub;
+	xHumPub.xMessage.qos = 0;
+	xHumPub.xMessage.retained = 0;
+	xHumPub.xMessage.payload = NULL;
+
+	/* Set all connection details for Pressure only on this place */
+	xPressJob.eJobType = ePublish;
+	xPressJob.data = (void *) &xPressPub;
+	xPressPub.xMessage.qos = 0;
+	xPressPub.xMessage.retained = 0;
+	xPressPub.xMessage.payload = NULL;
+#endif /* #if( netconfigUSEMQTT != 0 ) */
 	for(;;)
 	{
 		BME280_SetOversamplingMode(BME280_FORCED_MODE);
 		vTaskDelay( pdMS_TO_TICKS(500) );
 		BME280_ReadMeasurements();
 
-		DEBUGOUT("WEATHER-CLICK: Temp:%6.2lf, Hum:%5.2lf, Press:%7.2lf\n", BME280_GetTemperature(), BME280_GetHumidity(), BME280_GetPressure());
+		fTemp = BME280_GetTemperature();
+		fHum = BME280_GetHumidity();
+		fPress = BME280_GetPressure();
+
+		DEBUGOUT("WEATHER-CLICK: Temp:%5.2f, Hum:%5.2lf, Press:%6.2f\n", fTemp, fHum, fPress);
+	#if( netconfigUSEMQTT != 0 )
+		xMqttQueue = xGetMQTTQueueHandle();
+		if( xMqttQueue != NULL )
+		{
+			if(xTempPub.xMessage.payload == NULL)
+			{
+				/* _CD_ set payload each time, because mqtt task set payload to NULL, so calling task knows package is sent.*/
+				xTempPub.xMessage.payload = bufferTemp;
+				xTempPub.pucTopic = (char *)pvGetConfig( eConfigWeatherTempTopic, NULL );
+				sprintf(bufferTemp, "{\"meaning\":\"temp\",\"value\":%6.2f}", fTemp );
+				xTempPub.xMessage.payloadlen = strlen(bufferTemp);
+				xQueueSendToBack( xMqttQueue, &xTempJob, 0 );
+			}
+
+			if(xHumPub.xMessage.payload == NULL)
+			{
+				/* _CD_ set payload each time, because mqtt task set payload to NULL, so calling task knows package is sent.*/
+				xHumPub.xMessage.payload = bufferHum;
+				xHumPub.pucTopic = (char *)pvGetConfig( eConfigWeatherHumTopic, NULL );
+				sprintf(bufferHum, "{\"meaning\":\"hum\",\"value\":%5.2f}", fHum );
+				xHumPub.xMessage.payloadlen = strlen(bufferHum);
+				xQueueSendToBack( xMqttQueue, &xHumJob, 0 );
+			}
+
+			if(xPressPub.xMessage.payload == NULL)
+			{
+				/* _CD_ set payload each time, because mqtt task set payload to NULL, so calling task knows package is sent.*/
+				xPressPub.xMessage.payload = bufferPress;
+				xPressPub.pucTopic = (char *)pvGetConfig( eConfigWeatherPressTopic, NULL );
+				sprintf(bufferPress, "{\"meaning\":\"press\",\"value\":%7.2f}", fPress );
+				xPressPub.xMessage.payloadlen = strlen(bufferPress);
+				xQueueSendToBack( xMqttQueue, &xPressJob, 0 );
+			}
+		}
+	#endif /* #if( netconfigUSEMQTT != 0 ) */
 		vTaskDelay( pdMS_TO_TICKS(500) );
 	}
 }
 
+#if( includeHTTP_DEMO != 0 )
+	static BaseType_t xClickHTTPRequestHandler(char *pcBuffer, size_t uxBufferLength, QueryParam_t *pxParams, BaseType_t xParamCount)
+	{
+		BaseType_t xCount = 0;
+		QueryParam_t *pxParam;
 
-static BaseType_t xClickHTTPRequestHandler(char *pcBuffer, size_t uxBufferLength, QueryParam_t *pxParams, BaseType_t xParamCount)
-{
+		pxParam = pxFindKeyInQueryParams( "weatherTemp", pxParams, xParamCount );
+		if( pxParam != NULL )
+			pvSetConfig( eConfigWeatherTempTopic, strlen(pxParam->pcValue) + 1, pxParam->pcValue );
 
-}
+		pxParam = pxFindKeyInQueryParams( "weatherHum", pxParams, xParamCount );
+		if( pxParam != NULL )
+			pvSetConfig( eConfigWeatherHumTopic, strlen(pxParam->pcValue) + 1, pxParam->pcValue );
 
+		pxParam = pxFindKeyInQueryParams( "weatherPress", pxParams, xParamCount );
+		if( pxParam != NULL )
+			pvSetConfig( eConfigWeatherPressTopic, strlen(pxParam->pcValue) + 1, pxParam->pcValue );
+
+		xCount += sprintf( pcBuffer, "{\"wtemp\":%.2f,\"whum\":%.2f,\"wpress\":%.2f", fTemp, fHum, fPress );
+
+	#if( netconfigUSEMQTT != 0 )
+		char buffer[50];
+		char *pcTempTopic = (char *)pvGetConfig( eConfigWeatherTempTopic, NULL );
+		char *pcHumTopic =  (char *)pvGetConfig( eConfigWeatherHumTopic, NULL );
+		char *pcPressTopic =  (char *)pvGetConfig( eConfigWeatherPressTopic, NULL );
+		if( pcTempTopic != NULL )
+		{
+			strcpy( buffer, pcTempTopic );
+			vCleanTopic( buffer );
+			xCount += sprintf( pcBuffer + xCount , ",\"weatherTemp\":\"%s\"", buffer );
+		}
+
+		if( pcHumTopic != NULL )
+		{
+			strcpy( buffer, pcHumTopic );
+			vCleanTopic( buffer );
+			xCount += sprintf( pcBuffer + xCount , ",\"weatherHum\":\"%s\"", buffer );
+		}
+
+		if( pcPressTopic != NULL )
+		{
+			strcpy( buffer, pcPressTopic );
+			vCleanTopic( buffer );
+			xCount += sprintf( pcBuffer + xCount , ",\"weatherPress\":\"%s\"", buffer );
+		}
+	#endif /* #if( netconfigUSEMQTT != 0 ) */
+
+		xCount += sprintf( pcBuffer + xCount , "}" );
+		return xCount;
+	}
+#endif /* #if( includeHTTP_DEMO != 0 ) */
 
 BaseType_t xWeatherClick_Init ( const char *pcName, BaseType_t xPort )
 {
@@ -390,17 +516,17 @@ char tmp;
 			xSemaphoreGive( xI2C1_Mutex );
 
 			/* Create task. */
-			xTaskCreate( vWeatherTask, pcName, 240, NULL, ( tskIDLE_PRIORITY + 1 ), &xClickTaskHandle );
+			xTaskCreate( vWeatherTask, pcName, 320, NULL, ( tskIDLE_PRIORITY + 1 ), &xClickTaskHandle );
 		}
 
 		if( xClickTaskHandle != NULL )
 		{
-			/*#if( includeHTTP_DEMO != 0 )
+			#if( includeHTTP_DEMO != 0 )
 			{
 				/* Add HTTP request handler. */
-				/*xAddRequestHandler( pcName, xClickHTTPRequestHandler );
+				xAddRequestHandler( pcName, xClickHTTPRequestHandler );
 			}
-			#endif*/
+			#endif
 
 			xReturn = pdTRUE;
 		}

@@ -167,7 +167,7 @@ void vApplicationIPNetworkEventHook( eIPCallbackEvent_t eNetworkEvent, NetworkEn
 				}
 			#endif /* #if( netconfigUSEMQTT != 0 ) */
 
-				#define	mainTCP_SERVER_STACK_SIZE						240 /* Not used in the Win32 simulator. */
+				#define	mainTCP_SERVER_STACK_SIZE						320 /* Not used in the Win32 simulator. */
 
 				xTaskCreate( prvServerWorkTask, "SvrWork", mainTCP_SERVER_STACK_SIZE, NULL, ipconfigIP_TASK_PRIORITY - 1, NULL );
 

@@ -66,6 +66,9 @@
 	X(  34, eConfigExpandTopic2 )     \
 	X(  41, eConfigThermoTopic )      \
 	X(  51, eConfigColorTopic )       \
+	X(  61, eConfigWeatherTempTopic ) \
+	X(  62, eConfigWeatherHumTopic )  \
+	X(  63, eConfigWeatherPressTopic )\
 	/* ADD YOUR OWN TAGS BELOW */     \
 	// X( 128, eConfigCustom )
 
