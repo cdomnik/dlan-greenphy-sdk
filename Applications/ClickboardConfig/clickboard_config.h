@@ -44,6 +44,7 @@ typedef enum eCLICKBOARD_IDS {
 	eClickboardIdNone    = 0,
 	eClickboardIdExpand2 = 1838,
 	eClickboardIdThermo3 = 1885,
+	eClickboardIdWeather = 1978,
 	eClickboardIdColor2  = 1988
 } eClickboardId_t;
 

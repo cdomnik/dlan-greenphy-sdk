@@ -74,6 +74,10 @@
 	extern BaseType_t xExpand2Click_Init( const char *pcName, BaseType_t xPort );
 	extern BaseType_t xExpand2Click_Deinit( void );
 #endif
+#if ( includeWEATHER_CLICK != 0 )
+	extern BaseType_t xWeatherClick_Init( const char *pcName, BaseType_t xPort );
+	extern BaseType_t xWeatherClick_Deinit( void );
+#endif
 
 /* An array that holds all available clickboards, so they can be activated and
 deactivated through the clickboard config interface. */
@@ -87,6 +91,9 @@ static Clickboard_t pxClickboards[ ] =
 #endif
 #if( includeEXPAND2_CLICK != 0 )
 	{ eClickboardIdExpand2, "expand2", xExpand2Click_Init, xExpand2Click_Deinit, eClickboardAllPorts, eClickboardInactive },
+#endif
+#if( includeWEATHER_CLICK != 0 )
+	{ eClickboardIdWeather, "weather", xWeatherClick_Init, xWeatherClick_Deinit, eClickboardAllPorts, eClickboardInactive },
 #endif
 };
 

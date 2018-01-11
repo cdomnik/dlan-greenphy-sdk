@@ -131,11 +131,18 @@ BaseType_t xManageUptime( eVarAction xAction )
 void vCloseSocket( Socket_t xSocket )
 {
 	void *buffer;
+	unsigned char c = 0;
 	if( xSocket != NULL )
 	{
 		FreeRTOS_shutdown( xSocket, FREERTOS_SHUT_RDWR );
 		while( FreeRTOS_recv( xSocket, buffer, 0, 0 ) >= 0 ){
 			vTaskDelay( pdMS_TO_TICKS( 100 ) );
+			if( c >= 20 )
+			{
+				DEBUGOUT(" *** Warning: MQTT Task were not able to close socket clean!");
+				break;
+			}
+			c++;
 		}
 		/* The socket has shut down and is safe to close. */
 		FreeRTOS_closesocket( xSocket );

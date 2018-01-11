@@ -294,6 +294,38 @@ templates['mqtt'] = `
 			</tr>
 		</table>
 `;
+templates['weather'] = `
+		<h3>Sensor Data</h3>
+		<table class="mui-table mui-table--bordered">
+			<tr>
+				<td>Temperature</td>
+				<td>{{wtemp}}&nbsp;&deg;C</td>
+			</tr>
+			<tr>
+				<td>Humidity</td>
+				<td>{{whum}}&nbsp;&#037;</td>
+			</tr>
+			<tr>
+				<td>Pressure</td>
+				<td>{{wpress}}&nbsp;hPa</td>
+			</tr>
+		</table>
+		<h3>MQTT Topics</h3>
+		<table class="mui-table mui-table--bordered">
+			<tr>
+				<td>Topic Temperature</td>
+				<td><input type="text" name="weatherTemp" size="50" value="{{weatherTemp}}"></td>
+			</tr>
+			<tr>
+				<td>Topic Humidity</td>
+				<td><input type="text" name="weatherHum" size="50" value="{{weatherHum}}"></td>
+			</tr>
+			<tr>
+				<td>Topic Pressure</td>
+				<td><input type="text" name="weatherPress" size="50" value="{{weatherPress}}"></td>
+			</tr>
+		</table>
+`;
 
 
 var timeout;
