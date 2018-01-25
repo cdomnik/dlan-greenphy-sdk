@@ -132,7 +132,6 @@ void vCloseSocket( Socket_t xSocket )
 {
 	void *buffer;
 	unsigned char c = 0;
-	if( xSocket != NULL )
 	{
 		FreeRTOS_shutdown( xSocket, FREERTOS_SHUT_RDWR );
 		while( FreeRTOS_recv( xSocket, buffer, 0, 0 ) >= 0 ){
@@ -240,7 +239,6 @@ BaseType_t xConnect( MQTTClient *pxClient, Network *pxNetwork )
 	if( NetworkConnect( pxNetwork, pcBroker, *pxPort ) != 0 )
 	{
 		DEBUGOUT("MQTT-Error 0x0111: Error while NetworkConnect. %s, Port %d\n", pcBroker, *pxPort);
-		vCloseSocket( pxClient->ipstack->my_socket );
 		pxClient->ipstack->my_socket = NULL;
 		return pdFAIL;
 	}
@@ -297,6 +295,7 @@ void vMQTTTask( void *pvParameters )
 {
 	/* Variables */
 	BaseType_t cycles = 0;
+	BaseType_t xTime = ( portGET_RUN_TIME_COUNTER_VALUE() / 10000UL );
 	MQTTClient xClient;
 	Network xNetwork;
 	unsigned char pcSendBuf [MQTTSEND_BUFFER_SIZE];
@@ -402,6 +401,14 @@ void vMQTTTask( void *pvParameters )
 			xJob.eJobType = eRecieve;
 			xQueueSendToBack( xMqttQueueHandle, &xJob, 0 );
 			cycles = 0;
+		}
+
+		// Try to connect every 10 seconds (connect will check if connection is already established)
+		if( ( portGET_RUN_TIME_COUNTER_VALUE() / 10000UL ) > xTime + 10 )
+		{
+			xJob.eJobType = eConnect;
+			xQueueSendToBack( xMqttQueueHandle, &xJob, 0 );
+			xTime = ( portGET_RUN_TIME_COUNTER_VALUE() / 10000UL );
 		}
 
 		/* Delay until next call */

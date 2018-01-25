@@ -16,6 +16,7 @@
  *******************************************************************************/
 
 #include "MQTTFreeRTOS.h"
+#include "FreeRTOS_ARP.h"
 
 
 int ThreadStart(Thread* thread, void (*fn)(void*), void* arg)
@@ -159,9 +160,26 @@ int NetworkConnect(Network* n, char* addr, int port)
 	TickType_t xReceiveTimeout_ms = 10000;
 	WinProperties_t xMQTTWinProps; // Use Window Properties to limit the Socket Tx and RX Streams
 	xReceiveTimeout_ms /= portTICK_PERIOD_MS;
+	MACAddress_t xMACAddress;
 
 	if ((ipAddress = FreeRTOS_gethostbyname(addr)) == 0)
-		goto exit;
+	{
+		if((ipAddress = FreeRTOS_inet_addr( addr )) == 0)
+		{
+			goto exit;
+		}
+		else
+		{
+			//_CD_ b8:27:eb:40:fd:52 MAC of the Raspberry Pi - workaround for ARP error
+			xMACAddress.ucBytes[0] = 0xb8;
+			xMACAddress.ucBytes[1] = 0x27;
+			xMACAddress.ucBytes[2] = 0xeb;
+			xMACAddress.ucBytes[3] = 0x40;
+			xMACAddress.ucBytes[4] = 0xfd;
+			xMACAddress.ucBytes[5] = 0x52;
+			vARPRefreshCacheEntry( &xMACAddress, ipAddress);
+		}
+	}
 
 	sAddr.sin_port = FreeRTOS_htons(port);
 	sAddr.sin_addr = ipAddress;

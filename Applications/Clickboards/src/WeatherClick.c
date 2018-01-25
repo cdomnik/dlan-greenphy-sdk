@@ -393,7 +393,7 @@ static void vWeatherTask( void *pvParameters)
 		fHum = BME280_GetHumidity();
 		fPress = BME280_GetPressure();
 
-		DEBUGOUT("WEATHER-CLICK: Temp:%5.2f, Hum:%5.2lf, Press:%6.2f\n", fTemp, fHum, fPress);
+		DEBUGOUT("WEATHER-CLICK: Temp:%.2f, Hum:%.2lf, Press:%.2f\n", fTemp, fHum, fPress);
 	#if( netconfigUSEMQTT != 0 )
 		xMqttQueue = xGetMQTTQueueHandle();
 		if( xMqttQueue != NULL )
@@ -403,7 +403,7 @@ static void vWeatherTask( void *pvParameters)
 				/* _CD_ set payload each time, because mqtt task set payload to NULL, so calling task knows package is sent.*/
 				xTempPub.xMessage.payload = bufferTemp;
 				xTempPub.pucTopic = (char *)pvGetConfig( eConfigWeatherTempTopic, NULL );
-				sprintf(bufferTemp, "{\"meaning\":\"temp\",\"value\":%6.2f}", fTemp );
+				sprintf(bufferTemp, "%.2f", fTemp );
 				xTempPub.xMessage.payloadlen = strlen(bufferTemp);
 				xQueueSendToBack( xMqttQueue, &xTempJob, 0 );
 			}
@@ -413,7 +413,7 @@ static void vWeatherTask( void *pvParameters)
 				/* _CD_ set payload each time, because mqtt task set payload to NULL, so calling task knows package is sent.*/
 				xHumPub.xMessage.payload = bufferHum;
 				xHumPub.pucTopic = (char *)pvGetConfig( eConfigWeatherHumTopic, NULL );
-				sprintf(bufferHum, "{\"meaning\":\"hum\",\"value\":%5.2f}", fHum );
+				sprintf(bufferHum, "%.2f", fHum );
 				xHumPub.xMessage.payloadlen = strlen(bufferHum);
 				xQueueSendToBack( xMqttQueue, &xHumJob, 0 );
 			}
@@ -423,7 +423,7 @@ static void vWeatherTask( void *pvParameters)
 				/* _CD_ set payload each time, because mqtt task set payload to NULL, so calling task knows package is sent.*/
 				xPressPub.xMessage.payload = bufferPress;
 				xPressPub.pucTopic = (char *)pvGetConfig( eConfigWeatherPressTopic, NULL );
-				sprintf(bufferPress, "{\"meaning\":\"press\",\"value\":%7.2f}", fPress );
+				sprintf(bufferPress, "%.2f", fPress );
 				xPressPub.xMessage.payloadlen = strlen(bufferPress);
 				xQueueSendToBack( xMqttQueue, &xPressJob, 0 );
 			}

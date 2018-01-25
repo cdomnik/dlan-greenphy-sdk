@@ -90,7 +90,7 @@
 #define netconfigMQTT_PORT             1883
 #define netconfigMQTT_CLIENT           "TCdqKfhZeQriWr/7PNmy4mw"
 #define netconfigMQTT_USER             "09da8a7e-165e-42b8-96af-fecf366cb89b"
-#define netconfigMQTT_PASSWORT         "wy5t6n.SQBQx"*/
-#define netconfigMQTT_TOPIC            "/v1/6c1e2951-47cf-458c-a8ba-221dbc8b8898/data"
+#define netconfigMQTT_PASSWORT         "wy5t6n.SQBQx"
+#define netconfigMQTT_TOPIC            "/v1/6c1e2951-47cf-458c-a8ba-221dbc8b8898/data"*/
 
 #endif /* GREENPHYSDKNETCONFIG_H_ */
