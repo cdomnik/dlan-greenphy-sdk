@@ -57,11 +57,19 @@ static TaskHandle_t xMqttTaskHandle = NULL;
  ***********************************************************************************************************/
 void vCleanTopic( char *pcTopic )
 {
-	int i;
+	int i, j;
+	char help;
 	for(i = 0; i < strlen( pcTopic ); i++)
 	{
 		if( pcTopic[i] == 47 )
-			pcTopic[i] = 63;
+		{
+			for(j = strlen(pcTopic) + 1; j > i; j--)
+			{
+				help = pcTopic[j];
+				pcTopic[j+1] = help;
+			}
+			pcTopic[++i] = 47;
+		}
 	}
 }
 /***********************************************************************************************************
@@ -395,7 +403,7 @@ void vMQTTTask( void *pvParameters )
 				break;
 		}
 
-		/* Add Recive Job to Queue each 20 cycles (apox. 2s) */
+		/* Add Recive Job to Queue each 20 cycles (apox. 1s) */
 		if( ( cycles++ ) > 20 )
 		{
 			xJob.eJobType = eRecieve;

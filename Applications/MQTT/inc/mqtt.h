@@ -12,7 +12,7 @@
 #define MQTTQUEUE_ITEMSIZE sizeof(MqttJob_t) /* Size of each Queue Item in Byte */
 
 #define MQTTTASK_SIZE 420 /* Reserved stack-size for the MQTT Task in words */
-#define MQTTTASK_DELAY 100 /* Delay for the task in ms */
+#define MQTTTASK_DELAY 50 /* Delay for the task in ms */
 
 #define MQTTRECV_BUFFER_SIZE 32 /* Size of MQTT Receive Buffer in Bytes */
 #define MQTTSEND_BUFFER_SIZE 192 /* Size of MQTT Send Buffer in Bytes */

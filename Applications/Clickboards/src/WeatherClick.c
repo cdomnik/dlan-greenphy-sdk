@@ -349,9 +349,9 @@ static void vWeatherTask( void *pvParameters)
 	/* Buffer for Publish Messages, need a buffer for each value,
 	 * because buffer is given to mqtt task and may not be changed anymore
 	 * until mqtt task sets it to NULL */
-	char bufferTemp[34];
-	char bufferHum[32];
-	char bufferPress[36];
+	char bufferTemp[7];
+	char bufferHum[6];
+	char bufferPress[8];
 
 	/* Each Job and Publish Variable is needed for each Value because they will be send to the MqttQueue individually */
 	QueueHandle_t xMqttQueue = xGetMQTTQueueHandle();
